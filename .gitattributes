@@ -1,0 +1,17 @@
+# Auto detect text files and perform LF normalization
+* text=auto
+
+# Shell scripts - always use LF
+*.sh text eol=lf
+/bin/* text eol=lf
+pki text eol=lf
+
+# Binary files
+*.pem binary
+*.key binary
+*.crt binary
+*.csr binary
+*.p12 binary
+*.pfx binary
+*.pass binary
+*.srl binary
