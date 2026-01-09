@@ -124,12 +124,27 @@ parse_args() {
 build_certificate_subject() {
     local cert_cn="${1:-}"
     local default_cn="${2:-default}"
+    local project_dir="${3:-}"
     
     local country="${CRT_C:-FR}"
     local locality="${CRT_L:-Paris}"
-    local org="${CRT_O:-France}"
+    local org="${CRT_O:-}"
     local org_unit="${CRT_OU:-DevOps}"
     local cn="${cert_cn:-${CRT_CN:-$default_cn}}"
+    
+    # If CRT_O is not set, try to extract it from CA certificate
+    if [ -z "$org" ] && [ -n "$project_dir" ] && [ -f "${project_dir}/ca.crt" ]; then
+        local ca_org
+        if ca_org=$(extract_ca_organization "${project_dir}/ca.crt"); then
+            org="$ca_org"
+        else
+            # Fallback to default if extraction fails
+            org="France"
+        fi
+    elif [ -z "$org" ]; then
+        # Fallback to default if no project_dir provided
+        org="France"
+    fi
     
     echo "/C=${country}/L=${locality}/O=${org}/OU=${org_unit}/CN=${cn}"
 }
@@ -138,6 +153,42 @@ build_certificate_subject() {
 extract_cn_from_subject() {
     local subject="$1"
     echo "$subject" | sed -e 's,.*CN=\([^/]*\).*,\1,'
+}
+
+# Extract organization from CA certificate
+extract_ca_organization() {
+    local ca_cert="$1"
+    if [ ! -f "$ca_cert" ]; then
+        return 1
+    fi
+    
+    # Extract organizationName from CA certificate
+    # Try multiline format first
+    local org
+    org=$(openssl x509 -in "$ca_cert" -noout -subject -nameopt multiline,utf8 2>/dev/null | \
+          grep -i "organizationName" | \
+          sed -e 's/.*organizationName[[:space:]]*=[[:space:]]*\(.*\)/\1/' | \
+          sed -e "s/^[[:space:]]*//" | \
+          sed -e "s/[[:space:]]*$//" | \
+          head -n 1)
+    
+    # If multiline format didn't work, try single line format
+    if [ -z "$org" ]; then
+        org=$(openssl x509 -in "$ca_cert" -noout -subject 2>/dev/null | \
+              sed -e 's/.*\/O=\([^/]*\).*/\1/' | \
+              sed -e "s/^[[:space:]]*//" | \
+              sed -e "s/[[:space:]]*$//")
+    fi
+    
+    # Remove quotes if present
+    org=$(echo "$org" | sed -e "s/^['\"]//" | sed -e "s/['\"]$//")
+    
+    if [ -n "$org" ] && [ "$org" != "subject=" ]; then
+        echo "$org"
+        return 0
+    fi
+    
+    return 1
 }
 
 # Build extension file content
@@ -241,7 +292,17 @@ sign_certificate_ca() {
         ca_cmd+=(-extfile "$extfile")
     fi
     
-    "${ca_cmd[@]}"
+    if ! "${ca_cmd[@]}" 2>&1; then
+        error_exit "Failed to sign certificate with 'openssl ca'. Check that:
+- The certificate subject matches CA policy requirements
+- The organizationName matches the CA certificate (if policy_match is set)
+- All required files (ca.key, ca.pass, ca.cnf) are accessible"
+    fi
+    
+    # Verify certificate was created
+    if [ ! -f "${cert_uid}.crt" ]; then
+        error_exit "Certificate file '${cert_uid}.crt' was not created. Check openssl ca output above for errors."
+    fi
 }
 
 # Sign certificate using openssl x509
@@ -274,21 +335,48 @@ sign_certificate_x509() {
     "${x509_cmd[@]}"
 }
 
-# Generate PKCS#12 file for client certificates
+# Generate PKCS#12 file for certificates (client or server)
 generate_pkcs12() {
     local cert_uid="$1"
     local cert_cn="$2"
+    local no_passwd="${3:-false}"
+    
+    # Verify required files exist
+    if [ ! -f "${cert_uid}.crt" ]; then
+        error_exit "Certificate file '${cert_uid}.crt' not found. Cannot generate PKCS#12 file."
+    fi
+    
+    if [ ! -f "${cert_uid}.key" ]; then
+        error_exit "Private key file '${cert_uid}.key' not found. Cannot generate PKCS#12 file."
+    fi
     
     local p12_pass_file="${cert_uid}.p12.pass"
     generate_password 15 > "$p12_pass_file"
     
-    openssl pkcs12 -export \
-        -passin "file:${cert_uid}.key.pass" \
-        -inkey "${cert_uid}.key" \
-        -in "${cert_uid}.crt" \
-        -name "$cert_cn" \
-        -passout "file:${p12_pass_file}" \
+    local pkcs12_cmd=(
+        openssl pkcs12 -export
+        -inkey "${cert_uid}.key"
+        -in "${cert_uid}.crt"
+        -name "$cert_cn"
+        -passout "file:${p12_pass_file}"
         -out "${cert_uid}.p12"
+    )
+    
+    if [ "$no_passwd" != "true" ] && [ -f "${cert_uid}.key.pass" ]; then
+        pkcs12_cmd+=(-passin "file:${cert_uid}.key.pass")
+    fi
+    
+    local pkcs12_output
+    if ! pkcs12_output=$("${pkcs12_cmd[@]}" 2>&1); then
+        error_exit "Failed to generate PKCS#12 file:
+
+$pkcs12_output
+
+Check that:
+- Certificate file '${cert_uid}.crt' exists and is valid
+- Private key file '${cert_uid}.key' exists and is valid
+- If the key is password protected, the password file '${cert_uid}.key.pass' exists"
+    fi
 }
 
 # Display server certificate information
@@ -303,6 +391,10 @@ $(tput bold)
 The X509 file has been generated for server identified as '${cert_cn}'
 
   pubcert.crt : ${project_dir}/${cert_uid}.crt
+  container.p12 : ${project_dir}/${cert_uid}.p12 # <-- password stored in ${project_dir}/${cert_uid}.p12.pass
+    |
+    |-- pubcert.crt : ${project_dir}/${cert_uid}.crt
+    \`-- privkey.key : ${project_dir}/${cert_uid}.key
 
 You can now install it on your server so the clients can identify your server.
 
@@ -312,6 +404,10 @@ which means the CA certificate have to be deployed on the client in order to per
 If you want your clients to be able to actually *trust* the provided identity (that famous 'green address bar' in a browser for example), you'll need to deploy the CA certificate on the client side
 
   pubcert_CA.crt : ${project_dir}/ca.crt
+
+NB2:
+The PKCS#12 container (.p12) contains both the certificate and private key, password protected.
+If you're using Windows, you might want to rename the file .p12 -> .pfx
 $(tput sgr0)
 EOF
 }
@@ -399,7 +495,7 @@ main() {
     
     # Build certificate subject
     local subject
-    subject=$(build_certificate_subject "$cert_cn" "default")
+    subject=$(build_certificate_subject "$cert_cn" "default" "$project_dir")
     cert_cn=$(extract_cn_from_subject "$subject")
     
     # Generate certificate UID
@@ -441,10 +537,16 @@ main() {
             cleanup "$extfile_tmp"
         fi
         
-        # Generate PKCS#12 for client certificates
-        if [ "$cert_type" = "client" ]; then
-            generate_pkcs12 "$cert_uid" "$cert_cn"
+        # Ensure we're still in the project directory
+        cd "$project_dir" || error_exit "Cannot change to project directory: $project_dir"
+        
+        # Verify certificate was created
+        if [ ! -f "${cert_uid}.crt" ]; then
+            error_exit "Certificate file '${cert_uid}.crt' was not created after signing."
         fi
+        
+        # Generate PKCS#12 for certificates (both client and server)
+        generate_pkcs12 "$cert_uid" "$cert_cn" "$no_passwd"
         
         # Display information
         if [ "$cert_type" = "server" ]; then

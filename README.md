@@ -5,24 +5,51 @@ A comprehensive set of bash scripts for managing a complete Public Key Infrastru
 ## Features
 
 - ✅ **Certificate Authority (CA) Generation** - Create self-signed root CAs with RSA or ECC algorithms
-- ✅ **Server & Client Certificates** - Generate X.509 certificates for servers and PKCS#12 containers for clients
+- ✅ **Server & Client Certificates** - Generate X.509 certificates and PKCS#12 containers (.p12/.pfx) for both servers and clients
 - ✅ **CRL Management** - Revoke certificates and maintain Certificate Revocation Lists
 - ✅ **Flexible Configuration** - Customize certificate attributes via environment variables or custom OpenSSL config files
 - ✅ **Subject Alternative Names (SAN)** - Support for multiple DNS names and IP addresses
 - ✅ **Algorithm Support** - RSA (4096-bit) and Elliptic Curve (secp384r1) cryptography
 
-## Prerequisites
+## 📦 Prérequis
 
-- **OpenSSL** (version 1.1.1 or later recommended)
-- **Bash** (version 4.0 or later)
-- **Unix-like environment** (Linux, macOS, WSL on Windows)
+- **OpenSSL** (version 1.1.1 ou supérieure recommandée)
+- **Bash** (version 4.0 ou supérieure)
+- **Environnement Unix-like** (Linux, macOS, WSL sur Windows)
 
-### Verify Installation
+### Vérifier l'installation
 
 ```bash
 openssl version
 bash --version
 ```
+
+## 💡 Concepts de base
+
+### Qu'est-ce qu'une PKI ?
+
+Une **Public Key Infrastructure (PKI)** est un système qui permet de gérer des certificats numériques. Elle comprend :
+
+1. **Autorité de certification (CA)** : L'entité racine qui signe et valide les certificats
+2. **Certificats** : Documents numériques qui lient une clé publique à une identité
+3. **Liste de révocation (CRL)** : Liste des certificats révoqués avant leur expiration
+
+### Types de certificats
+
+- **Certificat serveur** : Utilisé pour authentifier un serveur (site web, API, etc.)
+  - Format : `.crt` (X.509) + `.p12` (PKCS#12 pour Windows)
+  - Clé privée : Sans mot de passe par défaut (pour services automatisés)
+
+- **Certificat client** : Utilisé pour authentifier un utilisateur ou un appareil
+  - Format : `.p12` (PKCS#12, pour navigateur/OS)
+  - Clé privée : Protégée par mot de passe par défaut
+
+### Formats de fichiers
+
+- **`.crt`** : Certificat public au format X.509 (standard)
+- **`.key`** : Clé privée (à garder secrète !)
+- **`.p12` / `.pfx`** : Conteneur PKCS#12 contenant certificat + clé privée (pour Windows/navigateurs)
+- **`.csr`** : Certificate Signing Request (demande de signature)
 
 ## Project Structure
 
@@ -42,126 +69,193 @@ pki-manager/
 └── README.md         # This file
 ```
 
-## Quick Start
+## 🚀 Démarrage rapide
 
-### Using the wrapper script (recommended)
+### Méthode recommandée : Utiliser le script wrapper
 
 ```bash
-# Create a Certificate Authority
+# 1. Créer une autorité de certification (CA)
 ./pki ca create -p demo -a ec
 
-# Generate a server certificate
-./pki cert -p demo -t server -a ec -n "*.example.com"
+# 2. Générer un certificat serveur
+./pki cert -p demo -t server -a ec -n "example.com"
 
-# Revoke a certificate and update CRL
-./pki crl -p demo -r 01 -u
+# 3. Générer un certificat client
+./pki cert -p demo -t client -a ec -n "John Doe"
 ```
 
-### Using scripts directly
+### Méthode alternative : Utiliser les scripts directement
 
 ```bash
-# Create a Certificate Authority
+# Créer une CA
 ./bin/pki-ca create -p demo -a ec
 
-# Generate certificates
-./bin/pki-cert -p demo -t server -a ec -n "*.example.com"
+# Générer des certificats
+./bin/pki-cert -p demo -t server -a ec -n "example.com"
 ./bin/pki-cert -p demo -t client -a ec -n "John Doe"
 
-# Manage CRL
+# Gérer la révocation
 ./bin/pki-crl -p demo -r 01 -u
 ```
 
-### 1. Create a Certificate Authority
+## 📋 Guide pas à pas
+
+### Étape 1 : Créer une autorité de certification (CA)
+
+La CA est la racine de confiance qui signera tous vos certificats.
 
 ```bash
 ./pki ca create -p demo -a ec
 ```
 
-This creates a new project directory `demo/` containing:
-- CA private key (`ca.key`) - password protected
-- CA certificate (`ca.crt`) - self-signed root certificate
-- CRL infrastructure - directories and configuration files
+**Ce qui est créé :**
+- `demo/ca.key` - Clé privée de la CA (protégée par mot de passe)
+- `demo/ca.crt` - Certificat auto-signé de la CA
+- `demo/ca.cnf` - Configuration OpenSSL
+- `demo/crl/` - Infrastructure pour les listes de révocation
 
-### 2. Generate Certificates
+**Choisir l'algorithme :**
+- `-a ec` : Elliptic Curve (recommandé, plus rapide, 384 bits)
+- `-a rsa` : RSA 4096 bits (compatibilité maximale)
 
-**Server certificate:**
+### Étape 2 : Générer des certificats
+
+#### Certificat serveur (pour sites web, API, etc.)
+
 ```bash
-./pki cert -p demo -t server -a ec -n "*.example.com"
+./pki cert -p demo -t server -a ec -n "example.com"
 ```
 
-**Client certificate:**
+**Fichiers générés :**
+- `serverCertificate_*.crt` - Certificat public
+- `serverCertificate_*.key` - Clé privée (sans mot de passe par défaut)
+- `serverCertificate_*.p12` - Conteneur PKCS#12 (pour Windows)
+- `serverCertificate_*.p12.pass` - Mot de passe du fichier .p12
+
+**Avec plusieurs domaines (SAN) :**
+```bash
+export CRT_SAN="DNS:example.com,DNS:www.example.com,DNS:*.example.com,IP:192.168.1.1"
+./pki cert -p demo -t server -a ec -n "example.com"
+```
+
+#### Certificat client (pour authentification utilisateur)
+
 ```bash
 ./pki cert -p demo -t client -a ec -n "John Doe"
 ```
 
-### 3. Manage Certificate Revocation
+**Fichiers générés :**
+- `clientCertificate_*.crt` - Certificat public
+- `clientCertificate_*.key` - Clé privée (protégée par mot de passe)
+- `clientCertificate_*.p12` - Conteneur PKCS#12 (pour navigateur/OS)
+- `clientCertificate_*.p12.pass` - Mot de passe du fichier .p12
+
+### Étape 3 : Gérer la révocation de certificats
+
+Si un certificat est compromis ou n'est plus nécessaire :
 
 ```bash
-# Revoke a certificate and update CRL
+# Révoker un certificat et mettre à jour la CRL
 ./pki crl -p demo -r 01 -u
 ```
 
-## Scripts Overview
+**Trouver le numéro de série :**
+```bash
+openssl x509 -in demo/serverCertificate_*.crt -noout -serial
+```
 
-| Script | Purpose | Key Features |
-|--------|---------|--------------|
-| `pki ca` | Create Certificate Authority | Generates CA key/cert, initializes CRL infrastructure |
-| `pki cert` | Generate certificates | Server (X.509) or Client (PKCS#12) certificates |
-| `pki crl` | Manage CRL | Revoke certificates, update revocation lists |
+## 📚 Vue d'ensemble des commandes
 
-## Detailed Documentation
+| Commande | Description | Fonctionnalités principales |
+|----------|-------------|------------------------------|
+| `pki ca` | Créer une autorité de certification | Génère la clé/certificat CA, initialise l'infrastructure CRL |
+| `pki cert` | Générer des certificats | Certificats serveur (X.509) et client (PKCS#12) |
+| `pki crl` | Gérer la CRL | Révoquer des certificats, mettre à jour les listes de révocation |
 
-### 1. Certificate Authority Generation
+## ⚙️ Configuration personnalisée
 
-**Command:** `pki ca create` or `bin/pki-ca create`
+### Variables d'environnement
 
-#### Syntax
+Vous pouvez personnaliser les certificats via des variables d'environnement :
+
+**Pour la CA :**
+```bash
+export CA_C="FR"                    # Code pays (2 lettres)
+export CA_L="Paris"                 # Localité
+export CA_O="Mon Entreprise"        # Organisation
+export CA_OU="IT Security"           # Unité organisationnelle
+export CA_EXPIRE_DAYS=1825           # Durée de validité (5 ans)
+./pki ca create -p myproject -a ec
+```
+
+**Pour les certificats :**
+```bash
+export CRT_C="FR"                    # Code pays
+export CRT_L="Paris"                 # Localité
+export CRT_O="Mon Entreprise"       # Organisation (doit correspondre au CA si policy_match)
+export CRT_OU="DevOps"               # Unité organisationnelle
+export CRT_SAN="DNS:example.com,DNS:www.example.com,IP:192.168.1.1"  # Noms alternatifs
+export CRT_EXPIRE_DAYS=365           # Durée de validité
+./pki cert -p myproject -t server -a ec -n "example.com"
+```
+
+**Note importante :** Si vous ne définissez pas `CRT_O`, PKI-Manager extrait automatiquement l'organisation du certificat CA pour garantir la correspondance avec la politique.
+
+## 📖 Documentation détaillée
+
+### 1. Création d'une autorité de certification
+
+**Commande :** `pki ca create`
+
+#### Syntaxe
 
 ```bash
-./pki ca create -p <project_name> -a <algorithm>
-# or
-./bin/pki-ca create -p <project_name> -a <algorithm>
+./pki ca create -p <nom_projet> -a <algorithme>
 ```
 
 #### Options
 
-| Option | Description | Required |
-|--------|-------------|----------|
-| `-p <project_name>` | Project name (creates a directory with this name) | ✅ Yes |
-| `-a <algorithm>` | Encryption algorithm: `rsa` or `ec` | ✅ Yes |
+| Option | Description | Requis |
+|--------|-------------|--------|
+| `-p <nom_projet>` | Nom du projet (crée un répertoire avec ce nom) | ✅ Oui |
+| `-a <algorithme>` | Algorithme de chiffrement : `rsa` ou `ec` | ✅ Oui |
 
-#### Algorithm Comparison
+#### Comparaison des algorithmes
 
-| Algorithm | Key Size | Performance | Use Case |
-|-----------|----------|-------------|----------|
-| **RSA** | 4096 bits | Slower | Maximum compatibility |
-| **EC** (secp384r1) | 384 bits | Faster | Modern systems, better performance |
+| Algorithme | Taille de clé | Performance | Cas d'usage |
+|------------|---------------|-------------|-------------|
+| **RSA** | 4096 bits | Plus lent | Compatibilité maximale |
+| **EC** (secp384r1) | 384 bits | Plus rapide | Systèmes modernes (recommandé) |
 
-#### Environment Variables
+#### Variables d'environnement pour la CA
 
-Customize the CA certificate subject with these environment variables:
+| Variable | Description | Par défaut |
+|----------|-------------|------------|
+| `CA_C` | Code pays (2 lettres) | `FR` |
+| `CA_L` | Localité/Ville | `Paris` |
+| `CA_O` | Organisation | `France` |
+| `CA_OU` | Unité organisationnelle | `DevOps` |
+| `CA_CN` | Nom commun | Nom du projet |
+| `CA_EXPIRE_DAYS` | Durée de validité CA (jours) | `365` |
+| `CRL_EXPIRE_DAYS` | Durée de validité CRL (jours) | `30` |
 
-| Variable | Description | Default |
-|----------|-------------|---------|
-| `CA_C` | Country code (2 letters) | `FR` |
-| `CA_L` | Locality/City | `Paris` |
-| `CA_O` | Organization | `France` |
-| `CA_OU` | Organizational Unit | `DevOps` |
-| `CA_CN` | Common Name | Project name |
-| `CA_EXPIRE_DAYS` | CA validity period (days) | `365` |
-| `CRL_EXPIRE_DAYS` | CRL validity period (days) | `30` |
+#### Exemples
 
-#### Examples
-
-**Basic CA creation:**
+**Création basique d'une CA :**
 ```bash
-./pki ca create -p myproject -a rsa
+./pki ca create -p myproject -a ec
 ```
 
-**Customized CA:**
+**CA personnalisée :**
 ```bash
-export CA_O="My Company" CA_OU="IT Security" CA_EXPIRE_DAYS=730
+export CA_O="Mon Entreprise" CA_OU="Sécurité IT" CA_EXPIRE_DAYS=1825
 ./pki ca create -p production -a ec
+```
+
+**CA pour un environnement de développement :**
+```bash
+export CA_O="Dev Company" CA_CN="Dev CA" CA_EXPIRE_DAYS=365
+./pki ca create -p dev -a ec
 ```
 
 #### Generated Files Structure
@@ -217,9 +311,11 @@ openssl crl -in demo/crl/ca.crl -text -noout
 #### Certificate Types
 
 **Server Certificates:**
-- Format: X.509 (`.crt`)
+- Format: X.509 (`.crt`) and PKCS#12 (`.p12` / `.pfx`)
 - Private key: Passwordless by default (for automated services)
+- PKCS#12 container: Password protected (contains certificate + private key)
 - Use case: Web servers, API endpoints, TLS/SSL services
+- Note: The `.p12` file is useful for Windows servers (can be renamed to `.pfx`)
 
 **Client Certificates:**
 - Format: PKCS#12 (`.p12` / `.pfx`)
@@ -248,160 +344,227 @@ export CRT_SAN="DNS:example.com,DNS:www.example.com,DNS:*.example.com,IP:192.168
 ./pki cert -p demo -t server -a ec -n "example.com"
 ```
 
-#### Examples
+#### Exemples
 
-**Basic server certificate:**
+**Certificat serveur basique :**
 ```bash
 ./pki cert -p demo -t server -a ec -n "api.example.com"
 ```
 
-**Server certificate with SAN:**
+**Certificat serveur avec SAN (plusieurs domaines) :**
 ```bash
 export CRT_SAN="DNS:api.example.com,DNS:www.example.com,IP:192.168.1.1"
 ./pki cert -p demo -t server -a ec -n "api.example.com"
 ```
 
-**Client certificate:**
+**Certificat client :**
 ```bash
-export CRT_O="My Company" CRT_OU="Development"
-./pki cert -p demo -t client -a ec -n "John Doe"
+export CRT_O="Mon Entreprise" CRT_OU="Développement"
+./pki cert -p demo -t client -a ec -n "Jean Dupont"
 ```
 
-**Using custom configuration file:**
+**Utilisation d'un fichier de configuration personnalisé :**
 ```bash
-./pki cert -p demo -t server -a ec -n "example.com" -c example_cert.cnf
+./pki cert -p demo -t server -a ec -n "example.com" -c examples/example_cert.cnf
 ```
 
-#### Generated Files
+**Certificat serveur pour LDAP :**
+```bash
+export CRT_SAN="DNS:ldap.example.com,IP:192.168.1.10"
+./pki cert -p demo -t server -a ec -n "ldap.example.com"
+```
 
-**For server certificates:**
-- `<type>Certificate_<timestamp>_<name>.key` - Private key
-- `<type>Certificate_<timestamp>_<name>.csr` - Certificate Signing Request
-- `<type>Certificate_<timestamp>_<name>.crt` - Signed certificate
+#### Fichiers générés
 
-**For client certificates:**
-- All files above, plus:
-- `<type>Certificate_<timestamp>_<name>.p12` - PKCS#12 container (for browser/OS import)
-- `<type>Certificate_<timestamp>_<name>.p12.pass` - P12 file password
+**Pour les certificats serveur :**
+- `<type>Certificate_<timestamp>_<name>.key` - Clé privée
+- `<type>Certificate_<timestamp>_<name>.csr` - Demande de signature de certificat
+- `<type>Certificate_<timestamp>_<name>.crt` - Certificat signé
+- `<type>Certificate_<timestamp>_<name>.p12` - Conteneur PKCS#12 (certificat + clé privée)
+- `<type>Certificate_<timestamp>_<name>.p12.pass` - Mot de passe du fichier .p12
 
-#### Viewing Certificate Information
+**Pour les certificats client :**
+- Tous les fichiers ci-dessus (même structure que les certificats serveur)
+- Le fichier `.p12` est principalement utilisé pour l'import dans le navigateur/OS
+
+#### Afficher les informations d'un certificat
 
 ```bash
-# Show certificate details
+# Afficher les détails complets du certificat
 openssl x509 -in certificate.crt -text -noout
 
-# Show certificate subject
+# Afficher le sujet du certificat
 openssl x509 -in certificate.crt -noout -subject
 
-# Show certificate serial number
+# Afficher le numéro de série
 openssl x509 -in certificate.crt -noout -serial
 
-# Verify certificate against CA
+# Vérifier le certificat contre la CA
 openssl verify -CAfile demo/ca.crt certificate.crt
 
-# For PKCS#12 files
+# Pour les fichiers PKCS#12
 openssl pkcs12 -info -in certificate.p12 -passin file:certificate.p12.pass
 ```
 
 ---
 
-### 3. CRL Management
+### 3. Gestion de la CRL (Liste de révocation)
 
-**Command:** `pki crl` or `bin/pki-crl`
+**Commande :** `pki crl`
 
-#### Syntax
+#### Syntaxe
 
 ```bash
-./pki crl -p <project_name> [-r <serial_number>] [-u]
+./pki crl -p <nom_projet> [-r <numéro_série>] [-u]
 ```
 
 #### Options
 
-| Option | Description | Required |
-|--------|-------------|----------|
-| `-p <project_name>` | Project name (must match existing CA project) | ✅ Yes |
-| `-r <serial_number>` | Serial number of certificate to revoke (hex format) | ❌ Optional |
-| `-u` | Update the CRL (use with `-r` or alone) | ❌ Optional |
+| Option | Description | Requis |
+|--------|-------------|--------|
+| `-p <nom_projet>` | Nom du projet (doit correspondre à un projet CA existant) | ✅ Oui |
+| `-r <numéro_série>` | Numéro de série du certificat à révoquer (format hex) | ❌ Optionnel |
+| `-u` | Mettre à jour la CRL (utiliser avec `-r` ou seul) | ❌ Optionnel |
 
-#### Examples
+#### Exemples
 
-**Revoke a certificate and update CRL:**
+**Révoquer un certificat et mettre à jour la CRL :**
 ```bash
 ./pki crl -p demo -r 01 -u
 ```
 
-**Update CRL without revoking:**
+**Mettre à jour la CRL sans révoquer :**
 ```bash
 ./pki crl -p demo -u
 ```
 
-**Revoke only (CRL will be updated automatically):**
+**Révoquer uniquement (la CRL sera mise à jour automatiquement) :**
 ```bash
 ./pki crl -p demo -r 02
 ```
 
-#### Finding Certificate Serial Numbers
+#### Trouver le numéro de série d'un certificat
 
-**From certificate file:**
+**Depuis le fichier certificat :**
 ```bash
 openssl x509 -in certificate.crt -noout -serial
 ```
 
-**From CA database:**
+**Depuis la base de données de la CA :**
 ```bash
 cat demo/index.txt
 ```
 
-**List all certificates:**
+**Lister tous les certificats :**
 ```bash
-# Show all issued certificates
+# Afficher tous les certificats émis
 cat demo/index.txt | grep "^V"
 
-# Show revoked certificates
+# Afficher les certificats révoqués
 cat demo/index.txt | grep "^R"
 ```
 
-#### Verifying CRL
+#### Vérifier la CRL
 
 ```bash
-# Display CRL content
+# Afficher le contenu de la CRL
 openssl crl -in demo/crl/ca.crl -text -noout
 
-# Count revoked certificates
+# Compter les certificats révoqués
 openssl crl -in demo/crl/ca.crl -text -noout | grep -c "Serial Number:"
 
-# Check if specific serial is revoked
+# Vérifier si un numéro de série spécifique est révoqué
 openssl crl -in demo/crl/ca.crl -text -noout | grep -A 2 "Serial Number: 01"
 ```
 
 ---
 
-## Custom Configuration Files
+## 🎯 Cas d'usage courants
 
-### Using Custom `.cnf` Files
-
-You can use custom OpenSSL configuration files to define advanced certificate extensions, Subject Alternative Names (SAN), and other options.
-
-#### Example Configuration File
-
-See `example_cert.cnf` for a complete example. The script automatically detects these sections:
-
-- `[v3_server]` - For server certificates
-- `[v3_client]` - For client certificates  
-- `[v3_req]` - Generic section (fallback)
-
-#### Usage
+### Cas d'usage 1 : Certificat pour un serveur web
 
 ```bash
-# Copy and customize the example
-cp example_cert.cnf my_cert.cnf
-# Edit my_cert.cnf according to your needs
+# 1. Créer la CA
+export CA_O="Mon Entreprise" CA_EXPIRE_DAYS=1825
+./pki ca create -p webapp -a ec
 
-# Use with certificate generation
+# 2. Générer le certificat avec tous les domaines nécessaires
+export CRT_SAN="DNS:webapp.com,DNS:www.webapp.com,DNS:*.webapp.com"
+./pki cert -p webapp -t server -a ec -n "webapp.com"
+
+# 3. Installer sur le serveur (exemple Nginx)
+# - Copier serverCertificate_*.crt vers /etc/ssl/certs/
+# - Copier serverCertificate_*.key vers /etc/ssl/private/
+```
+
+### Cas d'usage 2 : Certificat pour serveur LDAP/Active Directory
+
+```bash
+# 1. Créer la CA
+export CA_O="serval CA" CA_EXPIRE_DAYS=730
+./pki ca create -p serval -a ec
+
+# 2. Générer le certificat avec DNS et IP
+export CRT_SAN="DNS:ldap.serval.int,IP:192.168.134.10"
+./pki cert -p serval -t server -a ec -n "ldap.serval.int"
+
+# 3. Utiliser le fichier .p12 pour Windows
+# - Renommer .p12 en .pfx si nécessaire
+# - Importer dans le magasin de certificats Windows
+```
+
+### Cas d'usage 3 : Certificats clients pour authentification
+
+```bash
+# 1. Créer la CA (si pas déjà fait)
+./pki ca create -p company -a ec
+
+# 2. Générer des certificats pour plusieurs utilisateurs
+export CRT_O="Mon Entreprise" CRT_OU="IT Department"
+./pki cert -p company -t client -a ec -n "Alice Martin"
+./pki cert -p company -t client -a ec -n "Bob Dupont"
+
+# 3. Distribuer les fichiers .p12 aux utilisateurs
+# - Le mot de passe est dans le fichier .p12.pass
+# - Les utilisateurs peuvent importer dans leur navigateur
+```
+
+### Cas d'usage 4 : Certificat wildcard pour sous-domaines
+
+```bash
+# Certificat qui couvre tous les sous-domaines
+export CRT_SAN="DNS:*.example.com,DNS:example.com"
+./pki cert -p demo -t server -a ec -n "*.example.com"
+```
+
+---
+
+## 📝 Fichiers de configuration personnalisés
+
+### Utiliser des fichiers `.cnf` personnalisés
+
+Vous pouvez utiliser des fichiers de configuration OpenSSL personnalisés pour définir des extensions avancées, des Subject Alternative Names (SAN), et d'autres options.
+
+#### Fichier de configuration exemple
+
+Consultez `examples/example_cert.cnf` pour un exemple complet avec commentaires détaillés. Le script détecte automatiquement ces sections :
+
+- `[v3_server]` - Pour les certificats serveur
+- `[v3_client]` - Pour les certificats client
+- `[v3_req]` - Section générique (fallback)
+
+#### Utilisation
+
+```bash
+# Copier et personnaliser l'exemple
+cp examples/example_cert.cnf my_cert.cnf
+# Éditer my_cert.cnf selon vos besoins
+
+# Utiliser avec la génération de certificat
 ./pki cert -p demo -t server -a ec -n "example.com" -c my_cert.cnf
 ```
 
-#### Configuration File Structure
+#### Structure du fichier de configuration
 
 ```ini
 [ req ]
@@ -412,7 +575,6 @@ req_extensions = v3_req
 [ req_distinguished_name ]
 countryName = Country Name (2 letter code)
 countryName_default = FR
-# ... other DN fields
 
 [ v3_server ]
 basicConstraints = CA:FALSE
@@ -426,6 +588,8 @@ DNS.2 = www.example.com
 DNS.3 = *.example.com
 IP.1 = 192.168.1.1
 ```
+
+**Note :** Pour la plupart des cas d'usage, les variables d'environnement (`CRT_SAN`, etc.) sont suffisantes. Utilisez les fichiers `.cnf` uniquement pour des configurations très spécifiques.
 
 ---
 
@@ -518,6 +682,8 @@ project_name/
     ├── serverCertificate_20240101_webapp.com.key
     ├── serverCertificate_20240101_webapp.com.csr
     ├── serverCertificate_20240101_webapp.com.crt
+    ├── serverCertificate_20240101_webapp.com.p12
+    ├── serverCertificate_20240101_webapp.com.p12.pass
     ├── clientCertificate_20240101_JohnDoe.key
     ├── clientCertificate_20240101_JohnDoe.csr
     ├── clientCertificate_20240101_JohnDoe.crt
@@ -557,39 +723,48 @@ project_name/
 
 ---
 
-## Troubleshooting
+## 🔧 Dépannage
 
-### Common Issues
+### Problèmes courants
 
-**Error: "variable has no value" in ca.cnf**
-- This was a bug that has been fixed. Ensure you're using the latest version of the script.
+**Erreur : "organizationName field is different between CA certificate and the request"**
+- **Cause :** La politique CA exige que l'organisation corresponde
+- **Solution :** Ne définissez pas `CRT_O`, PKI-Manager l'extraira automatiquement du CA
+- **Alternative :** Définissez `CRT_O` avec la même valeur que celle utilisée pour créer la CA
 
-**Error: "project doesn't exist yet"**
-- Make sure you've created the CA first using `pki ca create`
-- Verify the project name matches exactly (case-sensitive)
+**Erreur : "project doesn't exist yet"**
+- **Cause :** Le projet CA n'existe pas encore
+- **Solution :** Créez d'abord la CA avec `./pki ca create -p <nom> -a <algo>`
+- **Vérification :** Le nom du projet doit correspondre exactement (sensible à la casse)
 
-**Error: "ca.cnf not found"**
-- Regenerate the CA using the updated `pki ca create` command
-- The CA must be created with a recent version that includes CRL support
+**Erreur : "ca.cnf not found"**
+- **Cause :** Le répertoire du projet n'est pas une CA valide
+- **Solution :** Recréez la CA avec `./pki ca create`
+- **Note :** La CA doit être créée avec une version récente incluant le support CRL
 
-**Certificate verification fails**
-- Ensure you're using the correct CA certificate: `openssl verify -CAfile project/ca.crt certificate.crt`
-- Check certificate expiration: `openssl x509 -in certificate.crt -noout -dates`
-- Verify the certificate chain is complete
+**Erreur : "Failed to sign certificate with 'openssl ca'"**
+- **Cause :** Le sujet du certificat ne correspond pas à la politique CA
+- **Solution :** Vérifiez que l'organisation correspond (voir première erreur)
+- **Vérification :** Consultez `ca.cnf` pour voir les politiques (`policy_match`)
 
-**CRL not updating**
-- Ensure you have write permissions in the project directory
-- Check that `ca.key` and `ca.pass` are accessible
-- Verify the `crl/` directory exists
+**La vérification du certificat échoue**
+- **Vérifier avec la CA :** `openssl verify -CAfile project/ca.crt certificate.crt`
+- **Vérifier l'expiration :** `openssl x509 -in certificate.crt -noout -dates`
+- **Vérifier la chaîne :** Assurez-vous que le certificat est signé par la CA
 
-**PKCS#12 import fails**
-- Verify the password file exists and contains the correct password
-- Try: `openssl pkcs12 -info -in file.p12 -passin file:file.p12.pass`
-- Some systems require the password to be entered interactively
+**La CRL ne se met pas à jour**
+- **Permissions :** Vérifiez les permissions d'écriture dans le répertoire du projet
+- **Fichiers :** Vérifiez que `ca.key` et `ca.pass` sont accessibles
+- **Répertoire :** Vérifiez que le répertoire `crl/` existe
 
-### Getting Help
+**L'import PKCS#12 échoue**
+- **Mot de passe :** Vérifiez que le fichier `.p12.pass` existe et contient le bon mot de passe
+- **Test :** `openssl pkcs12 -info -in file.p12 -passin file:file.p12.pass`
+- **Note :** Certains systèmes nécessitent la saisie interactive du mot de passe
 
-Each script provides help information:
+### Obtenir de l'aide
+
+Chaque script fournit des informations d'aide :
 
 ```bash
 ./pki ca --help
@@ -597,20 +772,30 @@ Each script provides help information:
 ./pki crl -h
 ```
 
-### Debugging
+### Débogage
 
-Enable verbose output by checking OpenSSL commands in the scripts. You can also test OpenSSL configuration:
+Testez la configuration OpenSSL :
 
 ```bash
-# Test CA configuration
+# Tester la configuration CA
 openssl ca -config demo/ca.cnf -help
 
-# Verify certificate
+# Vérifier un certificat
 openssl x509 -in certificate.crt -text -noout
 
-# Check CRL
+# Vérifier la CRL
 openssl crl -in demo/crl/ca.crl -text -noout
+
+# Vérifier un fichier PKCS#12
+openssl pkcs12 -info -in certificate.p12 -passin file:certificate.p12.pass
 ```
+
+### Conseils de débogage
+
+1. **Vérifier les permissions** : Assurez-vous d'avoir les droits de lecture/écriture
+2. **Vérifier les chemins** : Utilisez des chemins absolus si nécessaire
+3. **Vérifier les fichiers** : Assurez-vous que tous les fichiers requis existent
+4. **Consulter les logs** : Les messages d'erreur OpenSSL sont généralement explicites
 
 ---
 

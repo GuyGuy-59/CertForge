@@ -1,52 +1,113 @@
-# Example OpenSSL configuration file for certificate generation
-# This file can be used with the -c option of 02_generate_CRT.sh
+# =============================================================================
+# Example OpenSSL Configuration File for Certificate Generation
+# =============================================================================
+# 
+# This file demonstrates how to create a custom OpenSSL configuration file
+# for generating certificates with PKI-Manager.
+#
+# Usage:
+#   ./pki cert -p <project> -t <server|client> -a <rsa|ec> -n <name> -c examples/example_cert.cnf
+#
+# =============================================================================
 
+# -----------------------------------------------------------------------------
+# [ req ] - Certificate Request Section
+# -----------------------------------------------------------------------------
+# This section defines the default settings for certificate requests
 [ req ]
-default_bits = 4096
-default_keyfile = privkey.pem
-distinguished_name = req_distinguished_name
-req_extensions = v3_req
-x509_extensions = v3_ca
+default_bits = 4096                    # Key size: 2048, 4096 (RSA) or EC curve name
+default_keyfile = privkey.pem          # Default private key filename (not used by PKI-Manager)
+distinguished_name = req_distinguished_name  # Reference to DN section
+req_extensions = v3_req                # Extensions to include in certificate request
+x509_extensions = v3_ca                # Extensions for self-signed certificates (not used here)
 
+# -----------------------------------------------------------------------------
+# [ req_distinguished_name ] - Distinguished Name (DN) Fields
+# -----------------------------------------------------------------------------
+# These are the default values for certificate subject fields.
+# Note: PKI-Manager will override these with values from:
+#   - Command line (-n option for CN)
+#   - Environment variables (CRT_C, CRT_L, CRT_O, CRT_OU, CRT_CN)
+#   - Or automatically extract from CA certificate (for organization)
 [ req_distinguished_name ]
 countryName = Country Name (2 letter code)
-countryName_default = FR
+countryName_default = FR               # ISO 3166-1 alpha-2 country code
+
 stateOrProvinceName = State or Province Name
-stateOrProvinceName_default = Paris
+stateOrProvinceName_default = Paris     # State or province (optional)
+
 localityName = Locality Name
-localityName_default = Paris
+localityName_default = Paris            # City or locality
+
 organizationName = Organization Name
-organizationName_default = My Organization
+organizationName_default = My Organization  # Organization name (must match CA if policy_match is set)
+
 organizationalUnitName = Organizational Unit Name
-organizationalUnitName_default = IT Department
+organizationalUnitName_default = IT Department  # Department or division (optional)
+
 commonName = Common Name
-commonName_default = example.com
+commonName_default = example.com        # Domain name (server) or person name (client)
 
+# -----------------------------------------------------------------------------
+# [ v3_req ] - Version 3 Certificate Extensions (Generic)
+# -----------------------------------------------------------------------------
+# This section is used as a fallback if no specific v3_server or v3_client section exists
 [ v3_req ]
-basicConstraints = CA:FALSE
+basicConstraints = CA:FALSE             # This is NOT a Certificate Authority
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth, clientAuth
-subjectAltName = @alt_names
+extendedKeyUsage = serverAuth, clientAuth  # Can be used for both server and client
+subjectAltName = @alt_names            # Reference to alt_names section below
 
+# -----------------------------------------------------------------------------
+# [ v3_server ] - Version 3 Extensions for Server Certificates
+# -----------------------------------------------------------------------------
+# This section is automatically detected and used when generating server certificates
+# (when -t server is specified)
 [ v3_server ]
-basicConstraints = CA:FALSE
+basicConstraints = CA:FALSE             # This certificate cannot sign other certificates
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-extendedKeyUsage = serverAuth
-subjectAltName = @alt_names
-nsCertType = server
+extendedKeyUsage = serverAuth           # This certificate is for server authentication (TLS/SSL)
+subjectAltName = @alt_names            # Subject Alternative Names (see alt_names section)
+nsCertType = server                     # Netscape certificate type (legacy, optional)
 
+# -----------------------------------------------------------------------------
+# [ v3_client ] - Version 3 Extensions for Client Certificates
+# -----------------------------------------------------------------------------
+# This section is automatically detected and used when generating client certificates
+# (when -t client is specified)
 [ v3_client ]
-basicConstraints = CA:FALSE
+basicConstraints = CA:FALSE             # This certificate cannot sign other certificates
 keyUsage = nonRepudiation, digitalSignature, keyEncipherment
-extendedKeyUsage = clientAuth
-nsCertType = client, email
+extendedKeyUsage = clientAuth           # This certificate is for client authentication
+nsCertType = client, email              # Can be used for client auth and email signing
 
+# -----------------------------------------------------------------------------
+# [ alt_names ] - Subject Alternative Names (SAN)
+# -----------------------------------------------------------------------------
+# This section defines additional DNS names and IP addresses for which the certificate
+# is valid. This is essential for servers that need to serve multiple domains.
+#
+# IMPORTANT: Modern browsers require SAN for server certificates. The CN field
+# is often ignored in favor of SAN entries.
 [ alt_names ]
-# DNS names
-DNS.1 = example.com
-DNS.2 = www.example.com
-DNS.3 = *.example.com
-# IP addresses
-# IP.1 = 192.168.1.1
-# IP.2 = 10.0.0.1
+# DNS names - Add all domain names that should be covered by this certificate
+DNS.1 = example.com                     # Primary domain
+DNS.2 = www.example.com                 # www subdomain
+DNS.3 = *.example.com                   # Wildcard for all subdomains (e.g., api.example.com)
+
+# IP addresses - Add IP addresses if the server will be accessed by IP
+# IP.1 = 192.168.1.1                    # Uncomment and modify as needed
+# IP.2 = 10.0.0.1                       # Uncomment and modify as needed
+# IP.3 = 127.0.0.1                      # Localhost (for development)
+
+# =============================================================================
+# Tips:
+# =============================================================================
+# 1. For server certificates, always include SAN entries for all domains/IPs
+# 2. Wildcard certificates (*.example.com) cover all subdomains but NOT the root domain
+# 3. If you need both example.com and *.example.com, list them separately
+# 4. The organizationName should match your CA's organization if policy_match is enabled
+# 5. You can also use environment variable CRT_SAN instead of this file:
+#    export CRT_SAN="DNS:example.com,DNS:www.example.com,IP:192.168.1.1"
+# =============================================================================
 

@@ -1,43 +1,73 @@
+# =============================================================================
+# OpenSSL CA Configuration Template
+# =============================================================================
+# This template is used by PKI-Manager to generate the ca.cnf file when creating
+# a new Certificate Authority. The following placeholders are automatically
+# replaced by the script:
+#   __CA_DIR__         -> Full path to the CA directory
+#   __CA_EXPIRE_DAYS__ -> CA certificate validity period (days)
+#   __CRL_EXPIRE_DAYS__ -> CRL validity period (days)
+# =============================================================================
+
 [ ca ]
 default_ca = CA_default
 
+# -----------------------------------------------------------------------------
+# [ CA_default ] - Default CA Configuration
+# -----------------------------------------------------------------------------
 [ CA_default ]
-dir = __CA_DIR__
-certs = $dir
-new_certs_dir = $dir/newcerts
-private_key = $dir/ca.key
-certificate = $dir/ca.crt
-serial = $dir/ca.srl
-database = $dir/index.txt
-unique_subject = no
-default_md = sha512
-preserve = no
-policy = policy_match
-default_days = __CA_EXPIRE_DAYS__
-x509_extensions = v3_ca
-crlnumber = $dir/crlnumber
-crl_dir = $dir/crl
-default_crl_days = __CRL_EXPIRE_DAYS__
+dir = __CA_DIR__                    # CA directory (replaced by script)
+certs = $dir                        # Directory containing issued certificates
+new_certs_dir = $dir/newcerts       # Directory for new certificates (by serial)
+private_key = $dir/ca.key          # CA private key file
+certificate = $dir/ca.crt           # CA certificate file
+serial = $dir/ca.srl                # Serial number file (auto-incremented)
+database = $dir/index.txt           # Certificate database (issued/revoked status)
+unique_subject = no                 # Allow multiple certificates with same subject
+default_md = sha512                 # Default message digest algorithm
+preserve = no                       # Don't preserve DN ordering
+policy = policy_match               # Certificate policy (see [ policy_match ] below)
+default_days = __CA_EXPIRE_DAYS__   # Default certificate validity (replaced by script)
+x509_extensions = v3_ca             # X.509 v3 extensions for CA certificates
+crlnumber = $dir/crlnumber          # CRL serial number file
+crl_dir = $dir/crl                  # CRL output directory
+default_crl_days = __CRL_EXPIRE_DAYS__  # Default CRL validity (replaced by script)
 
+# -----------------------------------------------------------------------------
+# [ policy_match ] - Certificate Policy
+# -----------------------------------------------------------------------------
+# This policy defines which fields must match between CA and certificate requests:
+#   match     = Field must match exactly
+#   supplied  = Field must be present (value doesn't matter)
+#   optional  = Field is optional
 [ policy_match ]
-countryName = match
-stateOrProvinceName = optional
-organizationName = match
-organizationalUnitName = optional
-commonName = supplied
-emailAddress = optional
+countryName = match                  # Country must match CA certificate
+stateOrProvinceName = optional       # State/province is optional
+organizationName = match             # Organization must match CA certificate
+organizationalUnitName = optional    # Organizational unit is optional
+commonName = supplied                # Common name must be provided
+emailAddress = optional              # Email is optional
 
+# -----------------------------------------------------------------------------
+# [ v3_ca ] - X.509 v3 Extensions for CA Certificates
+# -----------------------------------------------------------------------------
 [ v3_ca ]
-subjectKeyIdentifier = hash
-authorityKeyIdentifier = keyid:always,issuer:always
-basicConstraints = critical,CA:true
-keyUsage = critical, keyCertSign, cRLSign
-crlDistributionPoints = URI:file://__CA_DIR__/crl/ca.crl
+subjectKeyIdentifier = hash         # Subject key identifier (hash of public key)
+authorityKeyIdentifier = keyid:always,issuer:always  # Authority key identifier
+basicConstraints = critical,CA:true  # This is a Certificate Authority
+keyUsage = critical, keyCertSign, cRLSign  # Can sign certificates and CRLs
+crlDistributionPoints = URI:file://__CA_DIR__/crl/ca.crl  # CRL location (replaced by script)
 
+# -----------------------------------------------------------------------------
+# [ v3_req ] - X.509 v3 Extensions for Certificate Requests
+# -----------------------------------------------------------------------------
 [ v3_req ]
-basicConstraints = CA:FALSE
-keyUsage = nonRepudiation, digitalSignature, keyEncipherment
+basicConstraints = CA:FALSE         # This is NOT a Certificate Authority
+keyUsage = nonRepudiation, digitalSignature, keyEncipherment  # Key usage restrictions
 
+# -----------------------------------------------------------------------------
+# [ crl_ext ] - CRL Extensions
+# -----------------------------------------------------------------------------
 [ crl_ext ]
-authorityKeyIdentifier = keyid:always,issuer:always
+authorityKeyIdentifier = keyid:always,issuer:always  # Authority key identifier for CRL
 
