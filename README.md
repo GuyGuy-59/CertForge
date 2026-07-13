@@ -1,4 +1,4 @@
-# PKI-Manager
+# PKI-Manager-OpenSSL
 
 A comprehensive set of bash scripts for managing a complete Public Key Infrastructure (PKI). Create Certificate Authorities (CA), generate server and client certificates, and manage Certificate Revocation Lists (CRL) with ease.
 
