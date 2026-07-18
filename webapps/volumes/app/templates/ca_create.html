@@ -1,0 +1,129 @@
+{% extends 'base.html' %}
+{% block title %} — New CA{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <a href="{{ url_for('main.dashboard') }}" class="back-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <span class="page-title">New Certificate Authority</span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+
+      <!-- Type -->
+      <div class="form-group">
+        <label class="form-label">CA Type</label>
+        <div class="form-radio-group">
+          <label class="form-radio">
+            <input type="radio" name="ca_type" value="root" checked onchange="onTypeChange()">
+            Root CA
+          </label>
+          <label class="form-radio">
+            <input type="radio" name="ca_type" value="intermediate" onchange="onTypeChange()">
+            Intermediate CA
+          </label>
+        </div>
+      </div>
+
+      <!-- Parent (hidden by default) -->
+      <div class="form-group" id="parentRow" style="display:none">
+        <label class="form-label" for="parentCa">Parent CA <span class="req">*</span></label>
+        <select name="parent_ca" id="parentCa" class="form-control" style="max-width:400px">
+          <option value="">— select a root CA —</option>
+          {% for ca in cas %}{% if not ca.is_intermediate %}
+          <option value="{{ ca.name }}">{{ ca.name }}</option>
+          {% endif %}{% endfor %}
+        </select>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="caName">Internal name <span class="req">*</span></label>
+          <input id="caName" type="text" name="name" class="form-control"
+                 placeholder="my-root-ca" required pattern="[a-zA-Z0-9_\-]+">
+          <div class="form-hint">Folder name — letters, digits, hyphens only.</div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="caCn">Common Name (CN) <span class="req">*</span></label>
+          <input id="caCn" type="text" name="cn" class="form-control"
+                 placeholder="My Root CA" required>
+        </div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="caOrg">Organization (O)</label>
+          <input id="caOrg" type="text" name="org" class="form-control" placeholder="ACME Corp">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="caOu">Organizational Unit (OU)</label>
+          <input id="caOu" type="text" name="ou" class="form-control" placeholder="IT Security">
+        </div>
+      </div>
+
+      <div class="form-grid-3">
+        <div class="form-group">
+          <label class="form-label" for="caCountry">Country (C)</label>
+          <input id="caCountry" type="text" name="country" class="form-control" value="FR" maxlength="2">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="caLocality">Locality (L)</label>
+          <input id="caLocality" type="text" name="locality" class="form-control" value="Paris">
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="expireDays">Validity (days)</label>
+          <input id="expireDays" type="number" name="expire_days" class="form-control"
+                 value="3650" min="30" max="7300">
+        </div>
+      </div>
+
+      <!-- Algorithm -->
+      <div class="form-group">
+        <label class="form-label">Algorithm</label>
+        <div class="algo-select-wrap">
+          <select name="algo" id="algoSelect" class="form-control" style="max-width:300px" onchange="updateAlgo()">
+            {% for value, label, safety, desc in algorithms %}
+            <option value="{{ value }}" data-safety="{{ safety }}" data-desc="{{ desc }}">{{ label }}</option>
+            {% endfor %}
+          </select>
+          <span id="algoBadge" class="algo-badge"></span>
+        </div>
+        <div id="algoDesc" class="algo-desc"></div>
+      </div>
+
+      <div style="display:flex;gap:.75rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-primary">Create CA</button>
+        <a href="{{ url_for('main.dashboard') }}" class="btn btn-outline">Cancel</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function onTypeChange() {
+  const isInter = document.querySelector('input[name="ca_type"][value="intermediate"]').checked;
+  document.getElementById('parentRow').style.display = isInter ? '' : 'none';
+  document.getElementById('expireDays').value = isInter ? '1825' : '3650';
+}
+function updateAlgo() {
+  const sel = document.getElementById('algoSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const badge = document.getElementById('algoBadge');
+  const desc  = document.getElementById('algoDesc');
+  const safe  = opt.dataset.safety === 'safe';
+  badge.className = 'algo-badge ' + (safe ? 'algo-safe' : 'algo-warning');
+  badge.textContent = safe ? '✓ Safe' : '⚠ Warning';
+  desc.textContent  = opt.dataset.desc;
+}
+updateAlgo();
+</script>
+{% endblock %}

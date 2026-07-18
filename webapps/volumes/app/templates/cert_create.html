@@ -1,0 +1,85 @@
+{% extends 'base.html' %}
+{% block title %} — Issue Certificate{% endblock %}
+{% block content %}
+
+<div class="page-header">
+  <div style="display:flex;align-items:center;gap:.75rem">
+    <a href="{{ url_for('main.ca_detail', ca_name=ca_name) }}" class="back-link">
+      <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+      Back
+    </a>
+    <span class="page-title">Issue Certificate <span style="color:var(--muted);font-weight:400">— {{ ca_name }}</span></span>
+  </div>
+</div>
+
+<div class="card">
+  <div class="card-body">
+    <form method="post">
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label" for="certCn">Common Name (CN) <span class="req">*</span></label>
+          <input id="certCn" type="text" name="cn" class="form-control"
+                 placeholder="server.example.com" required autofocus>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="certType">Certificate Type</label>
+          <select id="certType" name="cert_type" class="form-control">
+            <option value="server">Server (TLS)</option>
+            <option value="client">Client (mTLS)</option>
+          </select>
+        </div>
+      </div>
+
+      <div class="form-group">
+        <label class="form-label" for="certSan">Subject Alternative Names (SAN)</label>
+        <input id="certSan" type="text" name="san" class="form-control"
+               placeholder="server.example.com, 192.168.1.1, alt.example.com">
+        <div class="form-hint">Comma-separated DNS names or IP addresses. Defaults to CN if empty.</div>
+      </div>
+
+      <div class="form-grid">
+        <div class="form-group">
+          <label class="form-label">Algorithm</label>
+          <div class="algo-select-wrap">
+            <select name="algo" id="algoSelect" class="form-control" style="max-width:300px" onchange="updateAlgo()">
+              {% for value, label, safety, desc in algorithms %}
+              <option value="{{ value }}" data-safety="{{ safety }}" data-desc="{{ desc }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <span id="algoBadge" class="algo-badge"></span>
+          </div>
+          <div id="algoDesc" class="algo-desc"></div>
+        </div>
+        <div class="form-group">
+          <label class="form-label" for="certExpire">Validity (days)</label>
+          <input id="certExpire" type="number" name="expire_days" class="form-control"
+                 value="365" min="1" max="3650">
+        </div>
+      </div>
+
+      <div style="display:flex;gap:.75rem;margin-top:.5rem">
+        <button type="submit" class="btn btn-success">Issue Certificate</button>
+        <a href="{{ url_for('main.ca_detail', ca_name=ca_name) }}" class="btn btn-outline">Cancel</a>
+      </div>
+
+    </form>
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+function updateAlgo() {
+  const sel = document.getElementById('algoSelect');
+  const opt = sel.options[sel.selectedIndex];
+  const badge = document.getElementById('algoBadge');
+  const desc  = document.getElementById('algoDesc');
+  const safe  = opt.dataset.safety === 'safe';
+  badge.className = 'algo-badge ' + (safe ? 'algo-safe' : 'algo-warning');
+  badge.textContent = safe ? '✓ Safe' : '⚠ Warning';
+  desc.textContent  = opt.dataset.desc;
+}
+updateAlgo();
+</script>
+{% endblock %}

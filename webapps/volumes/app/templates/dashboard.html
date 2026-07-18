@@ -1,0 +1,561 @@
+{% extends 'base.html' %}
+{% block title %} — Dashboard{% endblock %}
+{% block content %}
+
+<!-- ─── Page header ───────────────────────────────────────────────────────── -->
+<div class="page-header">
+  <div class="page-title">
+    <svg width="17" height="17" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+    Certificate Authorities
+    {% if cas %}<span style="font-size:.78rem;font-weight:500;color:var(--muted);margin-left:.5rem">({{ cas|length }})</span>{% endif %}
+  </div>
+  <button class="btn btn-primary" onclick="openNewCA()">
+    <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+    New CA
+  </button>
+</div>
+
+<!-- ─── CA cards grid ─────────────────────────────────────────────────────── -->
+{% if cas %}
+<div class="ca-grid">
+  {% for ca in cas %}
+  <button class="ca-card" data-ca="{{ ca.name }}">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:.5rem">
+      <span class="ca-card-name">{{ ca.name }}</span>
+      {% if ca.is_intermediate %}
+      <span class="badge badge-indigo">Intermediate</span>
+      {% else %}
+      <span class="badge badge-neutral">Root</span>
+      {% endif %}
+    </div>
+    <div class="ca-card-meta">
+      {% if ca.is_intermediate %}
+      <span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px"><path d="M10 13a5 5 0 0 0 7.54.54l3-3a5 5 0 0 0-7.07-7.07l-1.72 1.71"/><path d="M14 11a5 5 0 0 0-7.54-.54l-3 3a5 5 0 0 0 7.07 7.07l1.71-1.71"/></svg>
+        {{ ca.parent }}
+      </span>
+      {% else %}
+      <span>
+        <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="vertical-align:middle;margin-right:2px"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z"/></svg>
+        Self-signed root
+      </span>
+      {% endif %}
+    </div>
+    <div style="display:flex;align-items:center;gap:.35rem;margin-top:.25rem">
+      <svg width="11" height="11" viewBox="0 0 24 24" fill="none" stroke="var(--primary)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M5 12h14"/><path d="M12 5l7 7-7 7"/></svg>
+      <span style="font-size:.76rem;color:var(--primary);font-weight:600">Open</span>
+    </div>
+  </button>
+  {% endfor %}
+</div>
+{% else %}
+<div class="empty">
+  <span class="empty-icon">🔐</span>
+  <p>No Certificate Authorities yet.</p>
+  <button class="btn btn-primary" onclick="openNewCA()">Create your first CA</button>
+</div>
+{% endif %}
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL LAYER 1 — z-index 500                                            -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ─── New CA Modal ──────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="newCaModal">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+
+    <div class="modal-header">
+      <div class="modal-title">New Certificate Authority</div>
+      <button class="modal-close" onclick="closeModal('newCaModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <form method="post" action="{{ url_for('main.ca_new') }}" id="newCaForm">
+
+        <div class="form-group">
+          <label class="form-label">CA Type</label>
+          <div class="form-radio-group">
+            <label class="form-radio">
+              <input type="radio" name="ca_type" value="root" checked onchange="onCaTypeChange()">
+              Root CA
+            </label>
+            <label class="form-radio">
+              <input type="radio" name="ca_type" value="intermediate" onchange="onCaTypeChange()">
+              Intermediate CA
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group" id="parentRow" style="display:none">
+          <label class="form-label" for="parentCa">Parent CA <span class="req">*</span></label>
+          <select name="parent_ca" id="parentCa" class="form-control" style="max-width:380px">
+            <option value="">— select a root CA —</option>
+            {% for ca in cas %}{% if not ca.is_intermediate %}
+            <option value="{{ ca.name }}">{{ ca.name }}</option>
+            {% endif %}{% endfor %}
+          </select>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="caName">Internal name <span class="req">*</span></label>
+            <input id="caName" type="text" name="name" class="form-control"
+                   placeholder="my-root-ca" required pattern="[a-zA-Z0-9_\-]+">
+            <div class="form-hint">Letters, digits, hyphens only.</div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caCn">Common Name (CN) <span class="req">*</span></label>
+            <input id="caCn" type="text" name="cn" class="form-control"
+                   placeholder="My Root CA" required>
+          </div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="caOrg">Organization (O)</label>
+            <input id="caOrg" type="text" name="org" class="form-control" placeholder="ACME Corp">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caOu">Organizational Unit (OU)</label>
+            <input id="caOu" type="text" name="ou" class="form-control" placeholder="IT Security">
+          </div>
+        </div>
+
+        <div class="form-grid-3">
+          <div class="form-group">
+            <label class="form-label" for="caCountry">Country (C)</label>
+            <input id="caCountry" type="text" name="country" class="form-control" value="FR" maxlength="2">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caLocality">Locality (L)</label>
+            <input id="caLocality" type="text" name="locality" class="form-control" value="Paris">
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="caExpire">Validity (days)</label>
+            <input id="caExpire" type="number" name="expire_days" class="form-control"
+                   value="3650" min="30" max="7300">
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label">Algorithm</label>
+          <div class="algo-select-wrap">
+            <select name="algo" id="caAlgoSelect" class="form-control" style="max-width:300px" onchange="updateAlgo('ca')">
+              {% for value, label, safety, desc in algorithms %}
+              <option value="{{ value }}" data-safety="{{ safety }}" data-desc="{{ desc }}">{{ label }}</option>
+              {% endfor %}
+            </select>
+            <span id="caAlgoBadge" class="algo-badge"></span>
+          </div>
+          <div id="caAlgoDesc" class="algo-desc"></div>
+        </div>
+
+        <div style="display:flex;gap:.6rem;margin-top:.25rem">
+          <button type="submit" class="btn btn-primary">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Create CA
+          </button>
+          <button type="button" class="btn btn-outline" onclick="closeModal('newCaModal')">Cancel</button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ─── CA Panel Modal ────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="caPanel">
+  <div class="modal modal-xl" onclick="event.stopPropagation()">
+
+    <div class="modal-header" id="caPanelHeader">
+      <div class="modal-title">Loading…</div>
+      <button class="modal-close" onclick="closeModal('caPanel')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body" id="caPanelBody">
+      <div class="modal-loading">Loading…</div>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+<!-- MODAL LAYER 2 — z-index 600  (appear on top of CA panel)              -->
+<!-- ═══════════════════════════════════════════════════════════════════════ -->
+
+<!-- ─── New Cert Modal ────────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="newCertModal" style="z-index:600">
+  <div class="modal modal-lg" onclick="event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <div class="modal-title">Issue Certificate</div>
+        <div style="font-size:.78rem;color:var(--muted);margin-top:.15rem" id="newCertCALabel"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('newCertModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body">
+      <form method="post" id="newCertForm">
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label" for="certCn">Common Name (CN) <span class="req">*</span></label>
+            <input id="certCn" type="text" name="cn" class="form-control"
+                   placeholder="server.example.com" required>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="certType">Certificate Type</label>
+            <select id="certType" name="cert_type" class="form-control">
+              <option value="server">Server (TLS)</option>
+              <option value="client">Client (mTLS)</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label class="form-label" for="certSan">Subject Alternative Names (SAN)</label>
+          <input id="certSan" type="text" name="san" class="form-control"
+                 placeholder="server.example.com, 192.168.1.1">
+          <div class="form-hint">Comma-separated DNS names or IPs. Defaults to CN if empty.</div>
+        </div>
+
+        <div class="form-grid">
+          <div class="form-group">
+            <label class="form-label">Algorithm</label>
+            <div class="algo-select-wrap">
+              <select name="algo" id="certAlgoSelect" class="form-control" style="max-width:280px" onchange="updateAlgo('cert')">
+                {% for value, label, safety, desc in algorithms %}
+                <option value="{{ value }}" data-safety="{{ safety }}" data-desc="{{ desc }}">{{ label }}</option>
+                {% endfor %}
+              </select>
+              <span id="certAlgoBadge" class="algo-badge"></span>
+            </div>
+            <div id="certAlgoDesc" class="algo-desc"></div>
+          </div>
+          <div class="form-group">
+            <label class="form-label" for="certExpire">Validity (days)</label>
+            <input id="certExpire" type="number" name="expire_days" class="form-control"
+                   value="365" min="1" max="3650">
+          </div>
+        </div>
+
+        <div style="display:flex;gap:.6rem;margin-top:.25rem">
+          <button type="submit" class="btn btn-success">
+            <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polyline points="20 6 9 17 4 12"/></svg>
+            Issue Certificate
+          </button>
+          <button type="button" class="btn btn-outline" onclick="closeModal('newCertModal')">Cancel</button>
+        </div>
+
+      </form>
+    </div>
+
+  </div>
+</div>
+
+
+<!-- ─── Cert Detail Modal ─────────────────────────────────────────────────── -->
+<div class="modal-backdrop" id="certDetailModal" style="z-index:600">
+  <div class="modal" onclick="event.stopPropagation()">
+
+    <div class="modal-header">
+      <div>
+        <div class="modal-title" id="certDetailCn">—</div>
+        <div style="margin-top:.3rem" id="certDetailBadge"></div>
+      </div>
+      <button class="modal-close" onclick="closeModal('certDetailModal')">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
+      </button>
+    </div>
+
+    <div class="modal-body" id="certDetailBody">
+      <div class="modal-loading">Loading…</div>
+    </div>
+
+    <div class="modal-footer" id="certDetailFooter"></div>
+
+  </div>
+</div>
+
+{% endblock %}
+{% block scripts %}
+<script>
+/* ── State ────────────────────────────────────────────────────────────── */
+let currentCA = null;
+
+/* ── Utilities ────────────────────────────────────────────────────────── */
+const esc = s => String(s ?? '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+
+const ICON_CLOSE = `<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>`;
+const ICON_DL    = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>`;
+const ICON_INFO  = `<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="10"/><line x1="12" y1="16" x2="12" y2="12"/><line x1="12" y1="8" x2="12.01" y2="8"/></svg>`;
+
+/* ── Modal open / close ───────────────────────────────────────────────── */
+function closeModal(id) {
+  document.getElementById(id).classList.remove('open');
+}
+
+document.querySelectorAll('.modal-backdrop').forEach(m => {
+  m.addEventListener('click', e => { if (e.target === m) m.classList.remove('open'); });
+});
+
+document.addEventListener('keydown', e => {
+  if (e.key !== 'Escape') return;
+  // close topmost open modal first
+  const open = [...document.querySelectorAll('.modal-backdrop.open')];
+  if (!open.length) return;
+  open.sort((a, b) => (parseInt(getComputedStyle(b).zIndex)||0) - (parseInt(getComputedStyle(a).zIndex)||0));
+  open[0].classList.remove('open');
+});
+
+/* ── CA cards ─────────────────────────────────────────────────────────── */
+document.querySelectorAll('.ca-card').forEach(card => {
+  card.addEventListener('click', () => showCA(card.dataset.ca));
+});
+
+/* ── CA Panel ─────────────────────────────────────────────────────────── */
+async function showCA(name) {
+  currentCA = name;
+  const panel = document.getElementById('caPanel');
+  panel.classList.add('open');
+  document.getElementById('caPanelHeader').innerHTML = `
+    <div class="modal-title">${esc(name)}</div>
+    <button class="modal-close" onclick="closeModal('caPanel')">${ICON_CLOSE}</button>`;
+  document.getElementById('caPanelBody').innerHTML = '<div class="modal-loading">Loading…</div>';
+
+  try {
+    const r = await fetch(`/ca/${encodeURIComponent(name)}/json`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    renderCAPanel(await r.json());
+  } catch(e) {
+    document.getElementById('caPanelBody').innerHTML = `<p style="color:var(--danger);padding:1rem">Error: ${esc(e.message)}</p>`;
+  }
+}
+
+function renderCAPanel(d) {
+  /* Header */
+  const isInter = !!d.parent;
+  document.getElementById('caPanelHeader').innerHTML = `
+    <div>
+      <div style="display:flex;align-items:center;gap:.6rem">
+        <span class="modal-title">${esc(d.name)}</span>
+        ${isInter
+          ? '<span class="badge badge-indigo" style="font-size:.68rem">Intermediate</span>'
+          : '<span class="badge badge-neutral" style="font-size:.68rem">Root</span>'}
+      </div>
+      ${isInter ? `<div style="font-size:.78rem;color:var(--muted);margin-top:.2rem">Signed by <strong>${esc(d.parent)}</strong></div>` : ''}
+    </div>
+    <button class="modal-close" onclick="closeModal('caPanel')">${ICON_CLOSE}</button>`;
+
+  /* Body */
+  let html = '';
+
+  /* AIA / CRL info */
+  if (d.aia_ca || d.aia_crl) {
+    html += `<table class="detail-table" style="margin-bottom:1.25rem;border:1px solid var(--border);border-radius:var(--radius)">`;
+    if (d.aia_ca)  html += `<tr><th>CA Issuers (AIA)</th><td><code>${esc(d.aia_ca)}</code> <span class="public-tag">public</span></td></tr>`;
+    if (d.aia_crl) html += `<tr><th>CRL Distribution</th><td><code>${esc(d.aia_crl)}</code> <span class="public-tag">public</span></td></tr>`;
+    html += `</table>`;
+  }
+
+  /* Download buttons */
+  html += `<div class="action-row" style="margin-bottom:1.5rem">
+    <a href="/ca/${esc(d.name)}/download/ca.crt" class="btn btn-outline btn-sm">${ICON_DL} CA Certificate</a>
+    ${d.chain_exists ? `<a href="/ca/${esc(d.name)}/download/ca-chain.crt" class="btn btn-outline btn-sm">${ICON_DL} Full Chain</a>` : ''}
+    <a href="/crl/${esc(d.name)}/download" class="btn btn-outline btn-sm">${ICON_DL} CRL</a>
+  </div>`;
+
+  /* Certs section header */
+  html += `<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:.875rem">
+    <span style="font-weight:700;font-size:.9rem">
+      Issued Certificates
+      ${d.certs.length ? `<span style="font-weight:400;color:var(--muted);font-size:.8rem;margin-left:.4rem">(${d.certs.length})</span>` : ''}
+    </span>
+    <button class="btn btn-success btn-sm" onclick="openNewCert()">
+      <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
+      Issue Certificate
+    </button>
+  </div>`;
+
+  /* Cert table or empty */
+  if (!d.certs.length) {
+    html += `<div class="empty" style="padding:2.5rem 1rem">
+      <span class="empty-icon">📄</span>
+      <p>No certificates issued yet.</p>
+    </div>`;
+  } else {
+    html += `<div class="table-wrap"><table>
+      <thead><tr>
+        <th>Common Name</th><th>Type</th><th>Algorithm</th><th>Expires</th><th>Status</th><th></th>
+      </tr></thead><tbody>`;
+
+    d.certs.forEach(c => {
+      const revoked = c.status === 'revoked';
+      const statusBadge = revoked
+        ? '<span class="badge badge-danger"><span class="dot dot-revoked"></span>Revoked</span>'
+        : '<span class="badge badge-success"><span class="dot dot-valid"></span>Valid</span>';
+      html += `<tr class="${revoked ? 'row-revoked' : ''}">
+        <td><button class="cert-link" onclick="openCertDetail('${esc(c.serial)}')">${esc(c.cn)}</button></td>
+        <td><span class="badge badge-neutral">${esc(c.cert_type)}</span></td>
+        <td style="font-family:var(--mono);font-size:.75rem;color:var(--muted)">${esc(c.algo||'—')}</td>
+        <td style="font-size:.8rem;color:var(--muted)">${esc(c.not_after||'—')}</td>
+        <td>${statusBadge}</td>
+        <td>
+          <div class="action-row" style="justify-content:flex-end;gap:.25rem">
+            <a href="/ca/${esc(d.name)}/cert/${esc(c.serial)}/download/crt"
+               class="btn btn-ghost btn-icon btn-sm" title="Download .crt">${ICON_DL}</a>
+            <button class="btn btn-ghost btn-icon btn-sm" title="Details"
+                    onclick="openCertDetail('${esc(c.serial)}')">${ICON_INFO}</button>
+          </div>
+        </td>
+      </tr>`;
+    });
+
+    html += `</tbody></table></div>`;
+  }
+
+  document.getElementById('caPanelBody').innerHTML = html;
+}
+
+/* ── New CA Modal ─────────────────────────────────────────────────────── */
+function openNewCA() {
+  document.getElementById('newCaForm').reset();
+  updateAlgo('ca');
+  document.getElementById('newCaModal').classList.add('open');
+  setTimeout(() => document.getElementById('caName').focus(), 80);
+}
+
+function onCaTypeChange() {
+  const isInter = document.querySelector('input[name="ca_type"][value="intermediate"]').checked;
+  document.getElementById('parentRow').style.display = isInter ? '' : 'none';
+  document.getElementById('caExpire').value = isInter ? '1825' : '3650';
+}
+
+/* ── New Cert Modal ───────────────────────────────────────────────────── */
+function openNewCert() {
+  const form = document.getElementById('newCertForm');
+  form.action = `/ca/${encodeURIComponent(currentCA)}/cert/new`;
+  form.reset();
+  updateAlgo('cert');
+  document.getElementById('newCertCALabel').textContent = `CA: ${currentCA}`;
+  document.getElementById('newCertModal').classList.add('open');
+  setTimeout(() => document.getElementById('certCn').focus(), 80);
+}
+
+/* ── Cert Detail Modal ────────────────────────────────────────────────── */
+async function openCertDetail(serial) {
+  const modal = document.getElementById('certDetailModal');
+  modal.classList.add('open');
+  document.getElementById('certDetailCn').textContent = '…';
+  document.getElementById('certDetailBadge').innerHTML = '';
+  document.getElementById('certDetailBody').innerHTML = '<div class="modal-loading">Loading…</div>';
+  document.getElementById('certDetailFooter').innerHTML = '';
+
+  try {
+    const r = await fetch(`/ca/${encodeURIComponent(currentCA)}/cert/${encodeURIComponent(serial)}/json`);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const d = await r.json();
+
+    document.getElementById('certDetailCn').textContent = d.cn;
+    document.getElementById('certDetailBadge').innerHTML = d.status === 'revoked'
+      ? '<span class="badge badge-danger"><span class="dot dot-revoked"></span>Revoked</span>'
+      : '<span class="badge badge-success"><span class="dot dot-valid"></span>Valid</span>';
+
+    let rows = '';
+    rows += `<tr><th>Type</th><td><span class="badge badge-neutral">${esc(d.cert_type)}</span></td></tr>`;
+    rows += `<tr><th>Algorithm</th><td><code>${esc(d.algo||'—')}</code></td></tr>`;
+    rows += `<tr><th>Serial</th><td><code style="font-size:.72rem;word-break:break-all">${esc(d.serial)}</code></td></tr>`;
+    rows += `<tr><th>Valid From</th><td>${esc(d.not_before||'—')}</td></tr>`;
+    let toCell = esc(d.not_after||'—');
+    if (d.status === 'revoked' && d.revoked_at)
+      toCell += ` <span style="color:var(--danger);font-size:.78rem">— revoked ${esc(d.revoked_at)}</span>`;
+    rows += `<tr><th>Valid To</th><td>${toCell}</td></tr>`;
+    if (d.fingerprint)
+      rows += `<tr><th>SHA-256</th><td><code style="font-size:.7rem;word-break:break-all">${esc(d.fingerprint)}</code></td></tr>`;
+    if (d.sans?.length)
+      rows += `<tr><th>SANs</th><td>${d.sans.map(s => `<code style="margin:.1rem .15rem .1rem 0;display:inline-block">${esc(s)}</code>`).join('')}</td></tr>`;
+    d.crl_urls?.forEach(u => rows += `<tr><th>CRL</th><td><code style="font-size:.75rem">${esc(u)}</code></td></tr>`);
+    d.aia_urls?.forEach(u => rows += `<tr><th>CA Issuers</th><td><code style="font-size:.75rem">${esc(u)}</code></td></tr>`);
+
+    document.getElementById('certDetailBody').innerHTML = `<table class="detail-table">${rows}</table>`;
+
+    /* Footer */
+    let footer = `
+      <a href="/ca/${encodeURIComponent(currentCA)}/cert/${esc(d.serial)}/download/crt" class="btn btn-outline btn-sm">↓ .crt</a>
+      <a href="/ca/${encodeURIComponent(currentCA)}/cert/${esc(d.serial)}/download/key" class="btn btn-outline btn-sm">↓ .key</a>
+      <a href="/ca/${encodeURIComponent(currentCA)}/cert/${esc(d.serial)}/download/p12" class="btn btn-outline btn-sm">↓ .p12</a>`;
+    if (d.status === 'valid') {
+      footer += `<button class="btn btn-danger btn-sm" style="margin-left:auto"
+                         onclick="revokeCert('${esc(d.serial)}','${esc(d.cn).replace(/'/g,"\\'")}')"
+                         id="revokeBtn">Revoke</button>`;
+    }
+    document.getElementById('certDetailFooter').innerHTML = footer;
+
+  } catch(e) {
+    document.getElementById('certDetailBody').innerHTML = `<p style="color:var(--danger)">Error: ${esc(e.message)}</p>`;
+  }
+}
+
+/* ── Revoke (AJAX) ────────────────────────────────────────────────────── */
+async function revokeCert(serial, cn) {
+  if (!confirm(`Revoke certificate "${cn}"?`)) return;
+  const btn = document.getElementById('revokeBtn');
+  btn.disabled = true;
+  btn.textContent = 'Revoking…';
+  try {
+    const r = await fetch(`/ca/${encodeURIComponent(currentCA)}/cert/${encodeURIComponent(serial)}/revoke`, {
+      method: 'POST',
+      headers: { 'X-Requested-With': 'XMLHttpRequest' },
+    });
+    const d = await r.json();
+    if (d.ok) {
+      closeModal('certDetailModal');
+      await showCA(currentCA);   /* refresh cert list in CA panel */
+    } else {
+      alert('Error: ' + d.error);
+      btn.disabled = false;
+      btn.textContent = 'Revoke';
+    }
+  } catch(e) {
+    alert('Network error');
+    btn.disabled = false;
+    btn.textContent = 'Revoke';
+  }
+}
+
+/* ── Algo selector ────────────────────────────────────────────────────── */
+function updateAlgo(prefix) {
+  const sel   = document.getElementById(prefix + 'AlgoSelect');
+  const opt   = sel.options[sel.selectedIndex];
+  const badge = document.getElementById(prefix + 'AlgoBadge');
+  const desc  = document.getElementById(prefix + 'AlgoDesc');
+  const safe  = opt.dataset.safety === 'safe';
+  badge.className   = 'algo-badge ' + (safe ? 'algo-safe' : 'algo-warning');
+  badge.textContent = safe ? '✓ Safe' : '⚠ Warning';
+  desc.textContent  = opt.dataset.desc;
+}
+
+/* ── Init ─────────────────────────────────────────────────────────────── */
+updateAlgo('ca');
+updateAlgo('cert');
+
+/* Auto-open CA panel when redirected after form submit (?open=name) */
+const params = new URLSearchParams(location.search);
+const autoOpen = params.get('open');
+if (autoOpen) {
+  history.replaceState(null, '', location.pathname);
+  showCA(autoOpen);
+}
+</script>
+{% endblock %}

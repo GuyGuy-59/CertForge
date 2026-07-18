@@ -6,3 +6,6 @@
 *.key
 *.srl
 *.pass
+.env
+__pycache__/
+*.pyc

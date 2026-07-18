@@ -1,6 +1,6 @@
-# PKI-Manager Usage Examples
+# CertForge — CLI Usage Examples
 
-This directory contains configuration examples and use cases for PKI-Manager.
+This directory contains configuration examples and use cases for the CertForge CLI.
 
 ## Available Files
 
@@ -79,7 +79,7 @@ export CRT_SAN="DNS:ldap.serval.int,IP:192.168.134.10"
 
 ## Important Notes
 
-1. **Organization Matching**: If your CA uses `policy_match` for `organizationName`, ensure that certificates use the same organization. PKI-Manager automatically extracts the organization from the CA if `CRT_O` is not defined.
+1. **Organization Matching**: If your CA uses `policy_match` for `organizationName`, ensure that certificates use the same organization. CertForge automatically extracts the organization from the CA if `CRT_O` is not defined.
 
 2. **Subject Alternative Names (SAN)**: For server certificates, always use SAN to include all necessary domains and IPs.
 

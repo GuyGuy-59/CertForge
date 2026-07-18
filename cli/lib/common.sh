@@ -1,7 +1,7 @@
 #!/bin/bash
 #
-# PKI Manager - Common Functions Library
-# Shared utilities used by all PKI Manager scripts
+# CertForge - Common Functions Library
+# Shared utilities used by all CertForge CLI scripts
 #
 
 # Colors for output
