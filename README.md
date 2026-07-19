@@ -52,6 +52,41 @@ CertForge-OpenSSL/
 
 A browser-based PKI manager with full CA hierarchy support, certificate issuance, CRL management, and AIA endpoints. Everything runs in Docker, all operations are done through modals — no page navigation.
 
+### Screenshots
+
+<table>
+<tr>
+<td align="center" width="50%">
+<img src="docs/screenshots/login.png" alt="Login" width="100%"/>
+<sub>Login</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/screenshots/dashboard.png" alt="Dashboard" width="100%"/>
+<sub>Dashboard — CA list</sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/screenshots/modal-new-ca.png" alt="New CA modal" width="100%"/>
+<sub>New Certificate Authority</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/screenshots/ca-detail.png" alt="CA detail" width="100%"/>
+<sub>CA detail — issued certificates</sub>
+</td>
+</tr>
+<tr>
+<td align="center" width="50%">
+<img src="docs/screenshots/modal-new-cert.png" alt="Issue certificate modal" width="100%"/>
+<sub>Issue Certificate</sub>
+</td>
+<td align="center" width="50%">
+<img src="docs/screenshots/cert-detail.png" alt="Certificate detail" width="100%"/>
+<sub>Certificate detail — download & revoke</sub>
+</td>
+</tr>
+</table>
+
 ### Features
 
 - Root CA and Intermediate CA creation

@@ -523,12 +523,12 @@ async function revokeCert(serial, cn) {
       closeModal('certDetailModal');
       await showCA(currentCA);   /* refresh cert list in CA panel */
     } else {
-      alert('Error: ' + d.error);
+      showToast('danger', 'Error: ' + d.error);
       btn.disabled = false;
       btn.textContent = 'Revoke';
     }
   } catch(e) {
-    alert('Network error');
+    showToast('danger', 'Network error');
     btn.disabled = false;
     btn.textContent = 'Revoke';
   }
